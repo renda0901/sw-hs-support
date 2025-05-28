@@ -7,8 +7,14 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Label } from "@/components/ui/label"
 import { Separator } from "@/components/ui/separator"
+import { supabase } from "@/lib/supabase"
+import { Loader2 } from "lucide-react"
 
-export default function GradeInput() {
+interface GradeInputProps {
+  userId?: string
+}
+
+export default function GradeInput({ userId }: GradeInputProps) {
   const [subject, setSubject] = useState("")
   const [examType, setExamType] = useState("")
   const [writtenScore, setWrittenScore] = useState("")
@@ -18,6 +24,9 @@ export default function GradeInput() {
     assignment3: "",
   })
   const [finalScore, setFinalScore] = useState<number | null>(null)
+  const [isLoading, setIsLoading] = useState(false)
+  const [error, setError] = useState("")
+  const [success, setSuccess] = useState("")
 
   const calculateScore = () => {
     const written = Number.parseFloat(writtenScore) || 0
@@ -32,16 +41,48 @@ export default function GradeInput() {
     setFinalScore(writtenPart + performancePart)
   }
 
-  const saveGrade = () => {
-    if (finalScore !== null && subject && examType) {
-      // 실제로는 서버에 저장
-      alert(`${subject} ${examType} 성적이 저장되었습니다: ${finalScore.toFixed(2)}점`)
+  const saveGrade = async () => {
+    if (!finalScore || !subject || !examType || !userId) {
+      setError("모든 필드를 입력해주세요.")
+      return
+    }
+
+    setIsLoading(true)
+    setError("")
+    setSuccess("")
+
+    try {
+      const { error } = await supabase.from("grades").insert({
+        user_id: userId,
+        subject,
+        exam_type: examType,
+        written_score: Number.parseFloat(writtenScore) || null,
+        performance_score_1: Number.parseFloat(performanceScores.assignment1) || null,
+        performance_score_2: Number.parseFloat(performanceScores.assignment2) || null,
+        performance_score_3: Number.parseFloat(performanceScores.assignment3) || null,
+        final_score: finalScore,
+        exam_date: new Date().toISOString().split("T")[0], // 오늘 날짜
+      })
+
+      if (error) {
+        console.error("Grade save error:", error)
+        setError("성적 저장 중 오류가 발생했습니다.")
+        return
+      }
+
+      setSuccess(`${subject} ${examType} 성적이 저장되었습니다: ${finalScore.toFixed(2)}점`)
+
       // 폼 초기화
       setSubject("")
       setExamType("")
       setWrittenScore("")
       setPerformanceScores({ assignment1: "", assignment2: "", assignment3: "" })
       setFinalScore(null)
+    } catch (err) {
+      console.error("Save error:", err)
+      setError("성적 저장 중 오류가 발생했습니다.")
+    } finally {
+      setIsLoading(false)
     }
   }
 
@@ -53,6 +94,18 @@ export default function GradeInput() {
           <CardDescription>새로운 성적을 입력하고 계산해보세요</CardDescription>
         </CardHeader>
         <CardContent className="space-y-6">
+          {error && (
+            <div className="p-4 bg-red-50 border border-red-200 rounded-lg">
+              <p className="text-red-600 text-sm">{error}</p>
+            </div>
+          )}
+
+          {success && (
+            <div className="p-4 bg-green-50 border border-green-200 rounded-lg">
+              <p className="text-green-600 text-sm">{success}</p>
+            </div>
+          )}
+
           {/* 기본 정보 */}
           <div className="grid grid-cols-2 gap-4">
             <div className="space-y-2">
@@ -99,7 +152,12 @@ export default function GradeInput() {
                 type="number"
                 placeholder="점수를 입력하세요 (0-100)"
                 value={writtenScore}
-                onChange={(e) => setWrittenScore(e.target.value)}
+                onChange={(e) => {
+                  const value = e.target.value
+                  if (value === "" || (Number(value) >= 0 && Number(value) <= 100)) {
+                    setWrittenScore(value)
+                  }
+                }}
                 max="100"
                 min="0"
               />
@@ -119,7 +177,12 @@ export default function GradeInput() {
                   type="number"
                   placeholder="점수를 입력하세요 (0-100)"
                   value={performanceScores.assignment1}
-                  onChange={(e) => setPerformanceScores({ ...performanceScores, assignment1: e.target.value })}
+                  onChange={(e) => {
+                    const value = e.target.value
+                    if (value === "" || (Number(value) >= 0 && Number(value) <= 100)) {
+                      setPerformanceScores({ ...performanceScores, assignment1: value })
+                    }
+                  }}
                   max="100"
                   min="0"
                 />
@@ -131,7 +194,12 @@ export default function GradeInput() {
                   type="number"
                   placeholder="점수를 입력하세요 (0-100)"
                   value={performanceScores.assignment2}
-                  onChange={(e) => setPerformanceScores({ ...performanceScores, assignment2: e.target.value })}
+                  onChange={(e) => {
+                    const value = e.target.value
+                    if (value === "" || (Number(value) >= 0 && Number(value) <= 100)) {
+                      setPerformanceScores({ ...performanceScores, assignment2: value })
+                    }
+                  }}
                   max="100"
                   min="0"
                 />
@@ -143,7 +211,12 @@ export default function GradeInput() {
                   type="number"
                   placeholder="점수를 입력하세요 (0-100)"
                   value={performanceScores.assignment3}
-                  onChange={(e) => setPerformanceScores({ ...performanceScores, assignment3: e.target.value })}
+                  onChange={(e) => {
+                    const value = e.target.value
+                    if (value === "" || (Number(value) >= 0 && Number(value) <= 100)) {
+                      setPerformanceScores({ ...performanceScores, assignment3: value })
+                    }
+                  }}
                   max="100"
                   min="0"
                 />
@@ -156,8 +229,15 @@ export default function GradeInput() {
               점수 계산하기
             </Button>
             {finalScore !== null && (
-              <Button onClick={saveGrade} variant="outline" className="flex-1">
-                성적 저장하기
+              <Button onClick={saveGrade} variant="outline" className="flex-1" disabled={isLoading}>
+                {isLoading ? (
+                  <>
+                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                    저장 중...
+                  </>
+                ) : (
+                  "성적 저장하기"
+                )}
               </Button>
             )}
           </div>

@@ -1,20 +1,29 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Label } from "@/components/ui/label"
 import { Progress } from "@/components/ui/progress"
-import { Target, TrendingUp, AlertCircle } from "lucide-react"
+import { Target, TrendingUp, AlertCircle, Loader2 } from "lucide-react"
+import { supabase } from "@/lib/supabase"
 
-export default function StudyPlanner() {
+interface StudyPlannerProps {
+  userId?: string
+}
+
+export default function StudyPlanner({ userId }: StudyPlannerProps) {
   const [selectedSubject, setSelectedSubject] = useState("")
   const [currentScore, setCurrentScore] = useState("")
   const [targetScore, setTargetScore] = useState("")
   const [timeFrame, setTimeFrame] = useState("")
   const [plan, setPlan] = useState<any>(null)
+  const [isLoading, setIsLoading] = useState(false)
+  const [error, setError] = useState("")
+  const [success, setSuccess] = useState("")
+  const [examSchedules, setExamSchedules] = useState<any[]>([])
 
   // 현재 성적 데이터 (모의)
   const currentGrades = {
@@ -26,13 +35,33 @@ export default function StudyPlanner() {
     과학: 80,
   }
 
+  useEffect(() => {
+    fetchUpcomingExams()
+  }, [])
+
+  const fetchUpcomingExams = async () => {
+    try {
+      const today = new Date().toISOString().split("T")[0]
+      const { data } = await supabase
+        .from("exam_schedules")
+        .select("*")
+        .gte("exam_date", today)
+        .order("exam_date", { ascending: true })
+        .limit(5)
+
+      setExamSchedules(data || [])
+    } catch (error) {
+      console.error("Error fetching exam schedules:", error)
+    }
+  }
+
   const calculatePlan = () => {
     const current = Number.parseFloat(currentScore) || currentGrades[selectedSubject as keyof typeof currentGrades] || 0
     const target = Number.parseFloat(targetScore) || 0
     const weeks = Number.parseInt(timeFrame) || 0
 
     if (!selectedSubject || target <= current || weeks <= 0) {
-      alert("올바른 값을 입력해주세요.")
+      setError("올바른 값을 입력해주세요.")
       return
     }
 
@@ -55,6 +84,41 @@ export default function StudyPlanner() {
       weeklyHours,
       recommendations: generateRecommendations(selectedSubject, scoreDiff, difficulty),
     })
+  }
+
+  const savePlan = async () => {
+    if (!plan || !userId) {
+      setError("학습 계획을 먼저 생성해주세요.")
+      return
+    }
+
+    setIsLoading(true)
+    setError("")
+    setSuccess("")
+
+    try {
+      const { error } = await supabase.from("study_plans").insert({
+        user_id: userId,
+        subject: plan.subject,
+        current_score: plan.current,
+        target_score: plan.target,
+        time_frame: plan.weeks,
+        difficulty: plan.difficulty,
+        total_study_hours: plan.totalStudyHours,
+        weekly_hours: plan.weeklyHours,
+      })
+
+      if (error) {
+        setError("학습 계획 저장 중 오류가 발생했습니다.")
+        return
+      }
+
+      setSuccess("학습 계획이 저장되었습니다.")
+    } catch (err) {
+      setError("학습 계획 저장 중 오류가 발생했습니다.")
+    } finally {
+      setIsLoading(false)
+    }
   }
 
   const generateRecommendations = (subject: string, scoreDiff: number, difficulty: string) => {
@@ -99,6 +163,35 @@ export default function StudyPlanner() {
 
   return (
     <div className="space-y-6">
+      {/* 다가오는 시험 정보 */}
+      {examSchedules.length > 0 && (
+        <Card className="border-blue-200 bg-blue-50">
+          <CardHeader>
+            <CardTitle className="text-blue-800">다가오는 시험 일정</CardTitle>
+            <CardDescription className="text-blue-700">시험에 맞춰 학습 계획을 세워보세요</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              {examSchedules.slice(0, 4).map((exam) => {
+                const daysUntil = Math.ceil(
+                  (new Date(exam.exam_date).getTime() - new Date().getTime()) / (1000 * 60 * 60 * 24),
+                )
+                return (
+                  <div key={exam.id} className="p-3 bg-white rounded-lg border border-blue-200">
+                    <p className="font-medium text-blue-900">
+                      {exam.subject} {exam.exam_type}
+                    </p>
+                    <p className="text-sm text-blue-700">
+                      {new Date(exam.exam_date).toLocaleDateString()} (D-{daysUntil})
+                    </p>
+                  </div>
+                )
+              })}
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
       <Card>
         <CardHeader>
           <CardTitle className="flex items-center space-x-2">
@@ -108,6 +201,18 @@ export default function StudyPlanner() {
           <CardDescription>목표 점수 달성을 위한 맞춤형 학습 계획을 세워보세요</CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
+          {error && (
+            <div className="p-4 bg-red-50 border border-red-200 rounded-lg">
+              <p className="text-red-600 text-sm">{error}</p>
+            </div>
+          )}
+
+          {success && (
+            <div className="p-4 bg-green-50 border border-green-200 rounded-lg">
+              <p className="text-green-600 text-sm">{success}</p>
+            </div>
+          )}
+
           <div className="grid grid-cols-2 gap-4">
             <div className="space-y-2">
               <Label htmlFor="subject">과목</Label>
@@ -153,7 +258,12 @@ export default function StudyPlanner() {
                     : "현재 점수"
                 }
                 value={currentScore}
-                onChange={(e) => setCurrentScore(e.target.value)}
+                onChange={(e) => {
+                  const value = e.target.value
+                  if (value === "" || (Number(value) >= 0 && Number(value) <= 100)) {
+                    setCurrentScore(value)
+                  }
+                }}
                 max="100"
                 min="0"
               />
@@ -165,16 +275,35 @@ export default function StudyPlanner() {
                 type="number"
                 placeholder="목표 점수를 입력하세요"
                 value={targetScore}
-                onChange={(e) => setTargetScore(e.target.value)}
+                onChange={(e) => {
+                  const value = e.target.value
+                  if (value === "" || (Number(value) >= 0 && Number(value) <= 100)) {
+                    setTargetScore(value)
+                  }
+                }}
                 max="100"
                 min="0"
               />
             </div>
           </div>
 
-          <Button onClick={calculatePlan} className="w-full">
-            학습 계획 생성하기
-          </Button>
+          <div className="flex space-x-2">
+            <Button onClick={calculatePlan} className="flex-1">
+              학습 계획 생성하기
+            </Button>
+            {plan && (
+              <Button onClick={savePlan} variant="outline" disabled={isLoading}>
+                {isLoading ? (
+                  <>
+                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                    저장 중...
+                  </>
+                ) : (
+                  "계획 저장"
+                )}
+              </Button>
+            )}
+          </div>
         </CardContent>
       </Card>
 

@@ -1,24 +1,68 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Badge } from "@/components/ui/badge"
-import { TrendingUp, TrendingDown, Minus } from "lucide-react"
+import { TrendingUp, TrendingDown, Minus, Loader2 } from "lucide-react"
+import { supabase } from "@/lib/supabase"
 
-export default function GradeHistory() {
+interface GradeHistoryProps {
+  userId?: string
+}
+
+interface Grade {
+  id: string
+  subject: string
+  exam_type: string
+  final_score: number
+  created_at: string
+  written_score: number | null
+  performance_score_1: number | null
+  performance_score_2: number | null
+  performance_score_3: number | null
+}
+
+export default function GradeHistory({ userId }: GradeHistoryProps) {
   const [selectedSubject, setSelectedSubject] = useState("all")
   const [selectedPeriod, setSelectedPeriod] = useState("all")
+  const [grades, setGrades] = useState<Grade[]>([])
+  const [isLoading, setIsLoading] = useState(true)
+  const [error, setError] = useState("")
 
-  // 모의 데이터
-  const gradeHistory = [
-    { id: 1, subject: "국어", type: "중간고사", score: 85, date: "2024-01-15", semester: "1학기" },
-    { id: 2, subject: "국어", type: "수행평가", score: 88, date: "2024-01-10", semester: "1학기" },
-    { id: 3, subject: "수학", type: "중간고사", score: 92, date: "2024-01-12", semester: "1학기" },
-    { id: 4, subject: "수학", type: "수행평가", score: 89, date: "2024-01-08", semester: "1학기" },
-    { id: 5, subject: "영어", type: "모의고사", score: 78, date: "2024-01-05", semester: "1학기" },
-    { id: 6, subject: "영어", type: "수행평가", score: 82, date: "2024-01-03", semester: "1학기" },
-  ]
+  useEffect(() => {
+    if (userId) {
+      fetchGrades()
+    }
+  }, [userId])
+
+  const fetchGrades = async () => {
+    if (!userId) return
+
+    setIsLoading(true)
+    setError("")
+
+    try {
+      const { data, error } = await supabase
+        .from("grades")
+        .select("*")
+        .eq("user_id", userId)
+        .order("created_at", { ascending: false })
+
+      if (error) {
+        console.error("Fetch grades error:", error)
+        setError("성적 기록을 불러올 수 없습니다.")
+        return
+      }
+
+      setGrades(data || [])
+    } catch (err) {
+      console.error("Fetch error:", err)
+      setError("성적 기록을 불러올 수 없습니다.")
+    } finally {
+      setIsLoading(false)
+    }
+  }
 
   const getScoreTrend = (currentScore: number, previousScore?: number) => {
     if (!previousScore) return null
@@ -47,23 +91,30 @@ export default function GradeHistory() {
     return "text-red-600"
   }
 
-  const filteredGrades = gradeHistory.filter((grade) => {
+  const filteredGrades = grades.filter((grade) => {
     const subjectMatch = selectedSubject === "all" || grade.subject === selectedSubject
-    const periodMatch = selectedPeriod === "all" || grade.semester === selectedPeriod
-    return subjectMatch && periodMatch
+    return subjectMatch
   })
 
-  const subjectAverages = gradeHistory.reduce(
+  const subjectAverages = grades.reduce(
     (acc, grade) => {
       if (!acc[grade.subject]) {
         acc[grade.subject] = { total: 0, count: 0 }
       }
-      acc[grade.subject].total += grade.score
+      acc[grade.subject].total += grade.final_score
       acc[grade.subject].count += 1
       return acc
     },
     {} as Record<string, { total: number; count: number }>,
   )
+
+  if (isLoading) {
+    return (
+      <div className="flex items-center justify-center p-8">
+        <Loader2 className="h-8 w-8 animate-spin" />
+      </div>
+    )
+  }
 
   return (
     <div className="space-y-6">
@@ -74,6 +125,11 @@ export default function GradeHistory() {
           <CardDescription>과거 성적 기록을 확인하고 분석해보세요</CardDescription>
         </CardHeader>
         <CardContent>
+          {error && (
+            <div className="mb-4 p-4 bg-red-50 border border-red-200 rounded-lg">
+              <p className="text-red-600 text-sm">{error}</p>
+            </div>
+          )}
           <div className="flex space-x-4">
             <Select value={selectedSubject} onValueChange={setSelectedSubject}>
               <SelectTrigger className="w-48">
@@ -84,16 +140,9 @@ export default function GradeHistory() {
                 <SelectItem value="국어">국어</SelectItem>
                 <SelectItem value="수학">수학</SelectItem>
                 <SelectItem value="영어">영어</SelectItem>
-              </SelectContent>
-            </Select>
-            <Select value={selectedPeriod} onValueChange={setSelectedPeriod}>
-              <SelectTrigger className="w-48">
-                <SelectValue placeholder="기간 선택" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">전체 기간</SelectItem>
-                <SelectItem value="1학기">1학기</SelectItem>
-                <SelectItem value="2학기">2학기</SelectItem>
+                <SelectItem value="한국사">한국사</SelectItem>
+                <SelectItem value="사회">사회</SelectItem>
+                <SelectItem value="과학">과학</SelectItem>
               </SelectContent>
             </Select>
           </div>
@@ -101,19 +150,21 @@ export default function GradeHistory() {
       </Card>
 
       {/* 과목별 평균 */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-        {Object.entries(subjectAverages).map(([subject, data]) => (
-          <Card key={subject}>
-            <CardHeader className="pb-2">
-              <CardTitle className="text-sm font-medium">{subject} 평균</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold">{(data.total / data.count).toFixed(1)}점</div>
-              <p className="text-xs text-muted-foreground">총 {data.count}회 평가</p>
-            </CardContent>
-          </Card>
-        ))}
-      </div>
+      {Object.keys(subjectAverages).length > 0 && (
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+          {Object.entries(subjectAverages).map(([subject, data]) => (
+            <Card key={subject}>
+              <CardHeader className="pb-2">
+                <CardTitle className="text-sm font-medium">{subject} 평균</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="text-2xl font-bold">{(data.total / data.count).toFixed(1)}점</div>
+                <p className="text-xs text-muted-foreground">총 {data.count}회 평가</p>
+              </CardContent>
+            </Card>
+          ))}
+        </div>
+      )}
 
       {/* 성적 목록 */}
       <Card>
@@ -121,38 +172,59 @@ export default function GradeHistory() {
           <CardTitle>상세 기록</CardTitle>
         </CardHeader>
         <CardContent>
-          <div className="space-y-4">
-            {filteredGrades.map((grade, index) => {
-              const previousGrade = filteredGrades[index + 1]
-              const trend =
-                previousGrade && previousGrade.subject === grade.subject
-                  ? getScoreTrend(grade.score, previousGrade.score)
-                  : null
+          {filteredGrades.length === 0 ? (
+            <div className="text-center py-8">
+              <p className="text-gray-500">아직 입력된 성적이 없습니다.</p>
+              <p className="text-sm text-gray-400 mt-2">성적 입력 탭에서 새로운 성적을 추가해보세요.</p>
+            </div>
+          ) : (
+            <div className="space-y-4">
+              {filteredGrades.map((grade, index) => {
+                const previousGrade = filteredGrades[index + 1]
+                const trend =
+                  previousGrade && previousGrade.subject === grade.subject
+                    ? getScoreTrend(grade.final_score, previousGrade.final_score)
+                    : null
 
-              return (
-                <div
-                  key={grade.id}
-                  className="flex items-center justify-between p-4 border rounded-lg hover:bg-gray-50"
-                >
-                  <div className="flex items-center space-x-4">
-                    <div>
-                      <h3 className="font-medium">{grade.subject}</h3>
-                      <div className="flex items-center space-x-2 mt-1">
-                        <Badge variant="outline">{grade.type}</Badge>
-                        <span className="text-sm text-gray-500">{grade.date}</span>
-                        <span className="text-sm text-gray-500">•</span>
-                        <span className="text-sm text-gray-500">{grade.semester}</span>
+                return (
+                  <div
+                    key={grade.id}
+                    className="flex items-center justify-between p-4 border rounded-lg hover:bg-gray-50"
+                  >
+                    <div className="flex items-center space-x-4">
+                      <div>
+                        <h3 className="font-medium">{grade.subject}</h3>
+                        <div className="flex items-center space-x-2 mt-1">
+                          <Badge variant="outline">{grade.exam_type}</Badge>
+                          <span className="text-sm text-gray-500">
+                            {new Date(grade.created_at).toLocaleDateString()}
+                          </span>
+                        </div>
+                        {grade.written_score && (
+                          <p className="text-xs text-gray-400 mt-1">
+                            지필: {grade.written_score}점 | 수행:{" "}
+                            {grade.performance_score_1 && grade.performance_score_2 && grade.performance_score_3
+                              ? (
+                                  (grade.performance_score_1 + grade.performance_score_2 + grade.performance_score_3) /
+                                  3
+                                ).toFixed(1)
+                              : "N/A"}
+                            점
+                          </p>
+                        )}
                       </div>
                     </div>
+                    <div className="flex items-center space-x-2">
+                      {getTrendIcon(trend)}
+                      <span className={`text-xl font-bold ${getScoreColor(grade.final_score)}`}>
+                        {grade.final_score.toFixed(1)}점
+                      </span>
+                    </div>
                   </div>
-                  <div className="flex items-center space-x-2">
-                    {getTrendIcon(trend)}
-                    <span className={`text-xl font-bold ${getScoreColor(grade.score)}`}>{grade.score}점</span>
-                  </div>
-                </div>
-              )
-            })}
-          </div>
+                )
+              })}
+            </div>
+          )}
         </CardContent>
       </Card>
     </div>

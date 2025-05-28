@@ -1,14 +1,14 @@
 "use client"
 
 import { useState, useEffect } from "react"
-import LoginPage from "@/components/login-page"
-import Dashboard from "@/components/dashboard"
+import AdminLogin from "@/components/admin-login"
+import AdminDashboard from "@/components/admin-dashboard"
 import { supabase } from "@/lib/supabase"
 import { Loader2 } from "lucide-react"
 
-export default function Home() {
+export default function AdminPage() {
   const [isLoggedIn, setIsLoggedIn] = useState(false)
-  const [user, setUser] = useState<{ name: string; grade: string; id: string } | null>(null)
+  const [admin, setAdmin] = useState<{ name: string; email: string; id: string } | null>(null)
   const [isLoading, setIsLoading] = useState(true)
 
   useEffect(() => {
@@ -19,13 +19,17 @@ export default function Home() {
       } = await supabase.auth.getSession()
 
       if (session?.user) {
-        // 사용자 프로필 정보 가져오기
-        const { data: profile } = await supabase.from("user_profiles").select("*").eq("id", session.user.id).single()
+        // 관리자 권한 확인
+        const { data: adminUser, error } = await supabase
+          .from("admin_users")
+          .select("*")
+          .eq("id", session.user.id)
+          .single()
 
-        if (profile) {
-          setUser({
-            name: profile.name,
-            grade: profile.grade,
+        if (adminUser) {
+          setAdmin({
+            name: adminUser.name,
+            email: adminUser.email,
             id: session.user.id,
           })
           setIsLoggedIn(true)
@@ -41,18 +45,25 @@ export default function Home() {
       data: { subscription },
     } = supabase.auth.onAuthStateChange(async (event, session) => {
       if (event === "SIGNED_OUT" || !session) {
-        setUser(null)
+        setAdmin(null)
         setIsLoggedIn(false)
       } else if (event === "SIGNED_IN" && session?.user) {
-        const { data: profile } = await supabase.from("user_profiles").select("*").eq("id", session.user.id).single()
+        const { data: adminUser, error } = await supabase
+          .from("admin_users")
+          .select("*")
+          .eq("id", session.user.id)
+          .single()
 
-        if (profile) {
-          setUser({
-            name: profile.name,
-            grade: profile.grade,
+        if (adminUser) {
+          setAdmin({
+            name: adminUser.name,
+            email: adminUser.email,
             id: session.user.id,
           })
           setIsLoggedIn(true)
+        } else {
+          // 관리자가 아닌 경우 로그아웃 처리
+          await supabase.auth.signOut()
         }
       }
     })
@@ -60,14 +71,14 @@ export default function Home() {
     return () => subscription.unsubscribe()
   }, [])
 
-  const handleLogin = (userData: { name: string; grade: string; id: string }) => {
-    setUser(userData)
+  const handleAdminLogin = (adminData: { name: string; email: string; id: string }) => {
+    setAdmin(adminData)
     setIsLoggedIn(true)
   }
 
   const handleLogout = async () => {
     await supabase.auth.signOut()
-    setUser(null)
+    setAdmin(null)
     setIsLoggedIn(false)
   }
 
@@ -80,8 +91,8 @@ export default function Home() {
   }
 
   if (!isLoggedIn) {
-    return <LoginPage onLogin={handleLogin} />
+    return <AdminLogin onAdminLogin={handleAdminLogin} />
   }
 
-  return <Dashboard user={user} onLogout={handleLogout} />
+  return <AdminDashboard admin={admin} onLogout={handleLogout} />
 }
