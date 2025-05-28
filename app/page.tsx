@@ -1,9 +1,26 @@
-import GradeCalculator from "@/components/grade-calculator"
+"use client"
+
+import { useState } from "react"
+import LoginPage from "@/components/login-page"
+import Dashboard from "@/components/dashboard"
 
 export default function Home() {
-  return (
-    <main className="max-w-md mx-auto p-4">
-      <GradeCalculator />
-    </main>
-  )
+  const [isLoggedIn, setIsLoggedIn] = useState(false)
+  const [user, setUser] = useState<{ name: string; grade: string } | null>(null)
+
+  const handleLogin = (userData: { name: string; grade: string }) => {
+    setUser(userData)
+    setIsLoggedIn(true)
+  }
+
+  const handleLogout = () => {
+    setUser(null)
+    setIsLoggedIn(false)
+  }
+
+  if (!isLoggedIn) {
+    return <LoginPage onLogin={handleLogin} />
+  }
+
+  return <Dashboard user={user} onLogout={handleLogout} />
 }
