@@ -54,6 +54,111 @@ export type Database = {
           updated_at?: string
         }
       }
+      subjects: {
+        Row: {
+          id: string
+          name: string
+          description: string | null
+          is_active: boolean
+          created_by: string
+          created_at: string
+          updated_at: string
+        }
+        Insert: {
+          id?: string
+          name: string
+          description?: string | null
+          is_active?: boolean
+          created_by: string
+          created_at?: string
+          updated_at?: string
+        }
+        Update: {
+          id?: string
+          name?: string
+          description?: string | null
+          is_active?: boolean
+          created_by?: string
+          created_at?: string
+          updated_at?: string
+        }
+      }
+      evaluation_types: {
+        Row: {
+          id: string
+          subject_id: string
+          name: string
+          type: string
+          weight: number
+          max_score: number | null
+          description: string | null
+          is_active: boolean
+          created_by: string
+          created_at: string
+          updated_at: string
+        }
+        Insert: {
+          id?: string
+          subject_id: string
+          name: string
+          type: string
+          weight: number
+          max_score?: number | null
+          description?: string | null
+          is_active?: boolean
+          created_by: string
+          created_at?: string
+          updated_at?: string
+        }
+        Update: {
+          id?: string
+          subject_id?: string
+          name?: string
+          type?: string
+          weight?: number
+          max_score?: number | null
+          description?: string | null
+          is_active?: boolean
+          created_by?: string
+          created_at?: string
+          updated_at?: string
+        }
+      }
+      student_grades: {
+        Row: {
+          id: string
+          user_id: string
+          subject_id: string
+          evaluation_type_id: string
+          score: number
+          exam_date: string | null
+          notes: string | null
+          created_at: string
+          updated_at: string
+        }
+        Insert: {
+          id?: string
+          user_id: string
+          subject_id: string
+          evaluation_type_id: string
+          score: number
+          exam_date?: string | null
+          notes?: string | null
+          created_at?: string
+          updated_at?: string
+        }
+        Update: {
+          id?: string
+          user_id?: string
+          subject_id?: string
+          evaluation_type_id?: string
+          score?: number
+          exam_date?: string | null
+          notes?: string | null
+          created_at?: string
+          updated_at?: string
+        }
+      }
       exam_schedules: {
         Row: {
           id: string
