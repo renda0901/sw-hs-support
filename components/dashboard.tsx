@@ -7,7 +7,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Avatar, AvatarFallback } from "@/components/ui/avatar"
 import { Calendar, TrendingUp, Target, BookOpen, LogOut, Plus, BarChart3, Clock, AlertCircle } from "lucide-react"
 import { Badge } from "@/components/ui/badge"
-import NewGradeInput from "./new-grade-input"
+import GradeInput from "./grade-input"
 import GradeHistory from "./grade-history"
 import StudyPlanner from "./study-planner"
 import { supabase } from "@/lib/supabaseClient"
@@ -55,56 +55,19 @@ export default function Dashboard({ user, onLogout }: DashboardProps) {
   const fetchUserStats = async () => {
     try {
       const { data: grades } = await supabase
-        .from("student_grades")
-        .select(`
-          *,
-          subject:subjects(name),
-          evaluation_type:evaluation_types(name, type)
-        `)
+        .from("grades")
+        .select("*")
         .eq("user_id", user?.id)
         .order("created_at", { ascending: false })
-        .limit(5)
+        .limit(3)
 
       if (grades) {
         setRecentGrades(grades)
 
-        // 평균 계산 (과목별 최종 성적 기준)
+        // 평균 계산
         if (grades.length > 0) {
-          const subjectScores = new Map()
-
-          grades.forEach((grade) => {
-            const subjectId = grade.subject_id
-            if (!subjectScores.has(subjectId)) {
-              subjectScores.set(subjectId, [])
-            }
-            subjectScores.get(subjectId).push(grade)
-          })
-
-          let totalScore = 0
-          let subjectCount = 0
-
-          subjectScores.forEach((subjectGrades) => {
-            // 각 과목별로 가중평균 계산
-            let weightedSum = 0
-            let totalWeight = 0
-
-            subjectGrades.forEach((grade: any) => {
-              if (grade.evaluation_type?.weight) {
-                const normalizedScore = (grade.score / (grade.evaluation_type.max_score || 100)) * 100
-                weightedSum += normalizedScore * (grade.evaluation_type.weight / 100)
-                totalWeight += grade.evaluation_type.weight
-              }
-            })
-
-            if (totalWeight > 0) {
-              totalScore += weightedSum
-              subjectCount++
-            }
-          })
-
-          if (subjectCount > 0) {
-            setAverageScore(totalScore / subjectCount)
-          }
+          const total = grades.reduce((sum, grade) => sum + grade.final_score, 0)
+          setAverageScore(total / grades.length)
         }
       }
     } catch (error) {
@@ -341,13 +304,13 @@ export default function Dashboard({ user, onLogout }: DashboardProps) {
                       recentGrades.map((grade, index) => (
                         <div key={grade.id} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
                           <div>
-                            <p className="font-medium">{grade.subject?.name}</p>
+                            <p className="font-medium">{grade.subject}</p>
                             <p className="text-sm text-gray-500">
-                              {grade.evaluation_type?.name} • {new Date(grade.created_at).toLocaleDateString()}
+                              {grade.exam_type} • {new Date(grade.created_at).toLocaleDateString()}
                             </p>
                           </div>
                           <div className="text-right">
-                            <p className="text-lg font-bold text-blue-600">{grade.score.toFixed(1)}점</p>
+                            <p className="text-lg font-bold text-blue-600">{grade.final_score.toFixed(1)}점</p>
                           </div>
                         </div>
                       ))
@@ -430,7 +393,7 @@ export default function Dashboard({ user, onLogout }: DashboardProps) {
           </TabsContent>
 
           <TabsContent value="input">
-            <NewGradeInput userId={user?.id} />
+            <GradeInput userId={user?.id} />
           </TabsContent>
 
           <TabsContent value="history">

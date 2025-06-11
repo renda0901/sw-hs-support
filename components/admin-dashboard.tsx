@@ -5,10 +5,9 @@ import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Avatar, AvatarFallback } from "@/components/ui/avatar"
-import { Calendar, BookOpen, LogOut, Plus, Users, Clock, Settings } from "lucide-react"
+import { Calendar, BookOpen, LogOut, Plus, Users, Clock } from "lucide-react"
 import ExamScheduleManager from "./exam-schedule-manager"
 import AssignmentScheduleManager from "./assignment-schedule-manager"
-import SubjectEvaluationManager from "./subject-evaluation-manager"
 import { supabase } from "@/lib/supabase"
 
 interface AdminDashboardProps {
@@ -23,8 +22,6 @@ export default function AdminDashboard({ admin, onLogout }: AdminDashboardProps)
     totalAssignments: 0,
     upcomingExams: 0,
     upcomingAssignments: 0,
-    totalSubjects: 0,
-    totalEvaluationTypes: 0,
   })
   const [isLoading, setIsLoading] = useState(true)
 
@@ -56,25 +53,11 @@ export default function AdminDashboard({ admin, onLogout }: AdminDashboardProps)
         .select("*", { count: "exact", head: true })
         .gte("due_date", today)
 
-      // 과목 수
-      const { count: subjectCount } = await supabase
-        .from("subjects")
-        .select("*", { count: "exact", head: true })
-        .eq("is_active", true)
-
-      // 평가 유형 수
-      const { count: evaluationCount } = await supabase
-        .from("evaluation_types")
-        .select("*", { count: "exact", head: true })
-        .eq("is_active", true)
-
       setStats({
         totalExams: examCount || 0,
         totalAssignments: assignmentCount || 0,
         upcomingExams: upcomingExamCount || 0,
         upcomingAssignments: upcomingAssignmentCount || 0,
-        totalSubjects: subjectCount || 0,
-        totalEvaluationTypes: evaluationCount || 0,
       })
     } catch (error) {
       console.error("Error fetching stats:", error)
@@ -116,14 +99,10 @@ export default function AdminDashboard({ admin, onLogout }: AdminDashboardProps)
       {/* Main Content */}
       <main className="p-6">
         <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-6">
-          <TabsList className="grid w-full grid-cols-4">
+          <TabsList className="grid w-full grid-cols-3">
             <TabsTrigger value="overview" className="flex items-center space-x-2">
               <Users className="w-4 h-4" />
               <span>개요</span>
-            </TabsTrigger>
-            <TabsTrigger value="subjects" className="flex items-center space-x-2">
-              <Settings className="w-4 h-4" />
-              <span>과목/평가 관리</span>
             </TabsTrigger>
             <TabsTrigger value="exams" className="flex items-center space-x-2">
               <Calendar className="w-4 h-4" />
@@ -137,27 +116,7 @@ export default function AdminDashboard({ admin, onLogout }: AdminDashboardProps)
 
           <TabsContent value="overview" className="space-y-6">
             {/* Stats Cards */}
-            <div className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-6 gap-6">
-              <Card>
-                <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                  <CardTitle className="text-sm font-medium">과목 수</CardTitle>
-                  <BookOpen className="h-4 w-4 text-muted-foreground" />
-                </CardHeader>
-                <CardContent>
-                  <div className="text-2xl font-bold">{stats.totalSubjects}</div>
-                  <p className="text-xs text-muted-foreground">등록된 과목</p>
-                </CardContent>
-              </Card>
-              <Card>
-                <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                  <CardTitle className="text-sm font-medium">평가 유형</CardTitle>
-                  <Settings className="h-4 w-4 text-muted-foreground" />
-                </CardHeader>
-                <CardContent>
-                  <div className="text-2xl font-bold">{stats.totalEvaluationTypes}</div>
-                  <p className="text-xs text-muted-foreground">등록된 평가 유형</p>
-                </CardContent>
-              </Card>
+            <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
               <Card>
                 <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
                   <CardTitle className="text-sm font-medium">전체 시험</CardTitle>
@@ -207,21 +166,13 @@ export default function AdminDashboard({ admin, onLogout }: AdminDashboardProps)
                 <CardDescription>자주 사용하는 기능들</CardDescription>
               </CardHeader>
               <CardContent>
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-                  <Button
-                    onClick={() => setActiveTab("subjects")}
-                    className="h-20 flex flex-col items-center justify-center space-y-2"
-                  >
-                    <Settings className="w-6 h-6" />
-                    <span>과목/평가 관리</span>
-                  </Button>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <Button
                     onClick={() => setActiveTab("exams")}
-                    variant="outline"
                     className="h-20 flex flex-col items-center justify-center space-y-2"
                   >
                     <Calendar className="w-6 h-6" />
-                    <span>시험 일정 추가</span>
+                    <span>새 시험 일정 추가</span>
                   </Button>
                   <Button
                     onClick={() => setActiveTab("assignments")}
@@ -229,23 +180,11 @@ export default function AdminDashboard({ admin, onLogout }: AdminDashboardProps)
                     className="h-20 flex flex-col items-center justify-center space-y-2"
                   >
                     <BookOpen className="w-6 h-6" />
-                    <span>수행평가 추가</span>
-                  </Button>
-                  <Button
-                    onClick={fetchStats}
-                    variant="outline"
-                    className="h-20 flex flex-col items-center justify-center space-y-2"
-                  >
-                    <Users className="w-6 h-6" />
-                    <span>통계 새로고침</span>
+                    <span>새 수행평가 추가</span>
                   </Button>
                 </div>
               </CardContent>
             </Card>
-          </TabsContent>
-
-          <TabsContent value="subjects">
-            <SubjectEvaluationManager adminId={admin?.id} />
           </TabsContent>
 
           <TabsContent value="exams">
